@@ -1,6 +1,5 @@
 const Module = require('module')
 const path = require('path')
-const cachedVm = require('cached-run-in-this-context')
 const crypto = require('crypto')
 
 function computeHash (contents) {
@@ -34,6 +33,22 @@ class NativeCompileCache {
     this.previousModuleCompile = Module.prototype._compile
   }
 
+  runInThisContext (code, filename) {
+    const script = new vm.Script(code, {filename, cachedData})
+    return {
+      result: script.runInThisContext(),
+      cacheBuffer: script.createCachedData()
+    }
+  }
+
+  runInThisContextCached (code, filename, cachedData) {
+    const script = new vm.Script(code, {filename, cachedData})
+    return {
+      result: script.runInThisContext(),
+      wasRejected: script.cachedDataRejected
+    }
+  }
+
   overrideModuleCompile () {
     let self = this
     // Here we override Node's module.js
@@ -64,7 +79,7 @@ class NativeCompileCache {
       let compiledWrapper = null
       if (self.cacheStore.has(cacheKey)) {
         let buffer = self.cacheStore.get(cacheKey)
-        let compilationResult = cachedVm.runInThisContextCached(wrapper, filename, buffer)
+        let compilationResult = runInThisContextCached(wrapper, filename, buffer)
         compiledWrapper = compilationResult.result
         if (compilationResult.wasRejected) {
           self.cacheStore.delete(cacheKey)
@@ -72,12 +87,14 @@ class NativeCompileCache {
       } else {
         let compilationResult
         try {
-          compilationResult = cachedVm.runInThisContext(wrapper, filename)
+          compilationResult = runInThisContext(wrapper, filename)
         } catch (err) {
           console.error(`Error running script ${filename}`)
           throw err
         }
-        if (compilationResult.cacheBuffer) {
+        process.stderr.write("RESULT: " + compilationResult.cacheBuffer.toString())
+        if (compilationResult.cacheBuffer !== null) {
+          process.stderr.write(`STORING CACHE FOR KEY: ${cacheKey}\n`)
           self.cacheStore.set(cacheKey, compilationResult.cacheBuffer)
         }
         compiledWrapper = compilationResult.result

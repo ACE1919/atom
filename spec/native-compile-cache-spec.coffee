@@ -21,6 +21,7 @@ fdescribe "NativeCompileCache", ->
       return
 
     fakeCacheStore.set.andCallFake (cacheKey, cacheBuffer) ->
+      process.stderr.write("WRITING CACHE #{cacheKey} #{cacheBuffer}")
       cachedFiles.push({cacheKey, cacheBuffer})
 
     nativeCompileCache.setCacheStore(fakeCacheStore)
